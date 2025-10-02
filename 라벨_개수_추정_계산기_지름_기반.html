@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>라벨 개수 추정 계산기 (지름 기반)</title>
+  <style>
+    :root { --bg:#0b0f14; --card:#121820; --ink:#e7eef8; --muted:#9fb3c8; --accent:#6aa6ff; --danger:#ff6a7a; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:var(--bg); color:var(--ink); }
+    .wrap { max-width: 900px; margin: 24px auto; padding: 16px; }
+    .title { font-weight: 800; letter-spacing: -0.3px; font-size: clamp(20px, 2.4vw, 28px); }
+    .sub { color: var(--muted); margin-top: 6px; font-size: 14px; }
+    .grid { display:grid; gap:12px; grid-template-columns: 1fr; }
+    @media (min-width: 760px){ .grid.cols-2{ grid-template-columns: 1fr 1fr;} }
+    .card { background: var(--card); border: 1px solid #1d2631; border-radius: 16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .card h2{ margin:0 0 8px; font-size:18px; }
+    label { display:block; font-size:12px; color: var(--muted); margin: 8px 0 6px; }
+    input, button { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #2a3441; background:#0e141b; color: var(--ink); font-size: 14px; }
+    input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+    .row { display:flex; gap:8px; align-items:center; }
+    .row > * { flex:1; }
+    .hint { color: var(--muted); font-size: 12px; }
+    .btn { cursor:pointer; transition: .15s ease; }
+    .btn:hover { filter: brightness(1.1); }
+    .btn.primary { background: linear-gradient(180deg, #7bb4ff, #5a93ec); color:#061222; border: none; font-weight: 700; }
+    .btn.ghost { background: transparent; border: 1px dashed #334055; color: var(--muted);}    
+    .btn.warn { background: #29151a; border: 1px solid #522632; color: #ffb4bf; }
+    .error { color: var(--danger); font-size: 13px; margin-top: 8px; display:none; }
+    .result { font-size: clamp(22px, 3vw, 32px); font-weight: 800; letter-spacing: -0.4px; }
+    .result small { font-weight: 500; color: var(--muted); font-size: 12px; }
+    .muted { color: var(--muted); }
+    details { border-top: 1px solid #223042; padding-top: 12px; margin-top: 12px; }
+    code { background:#0a1016; border:1px solid #1e2a38; padding:2px 6px; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">라벨 개수 추정 계산기 (지름 기반)</div>
+    <div class="sub">바깥지름·속지름·높이로 계산. 동일 재질/두께일 때 라벨 개수는 <b>부피에 비례</b>한다고 가정. 단위는 <b>cm</b>, 결과는 소수점 <b>1</b>자리까지 표시.</div>
+
+    <div class="grid cols-2" style="margin-top:14px;">
+      <section class="card">
+        <h2>입력</h2>
+        <div class="grid cols-2">
+          <div>
+            <label>완롤 바깥지름</label>
+            <input id="a1" type="number" step="0.1" placeholder="예: 27.7" />
+          </div>
+          <div>
+            <label>비교롤 바깥지름</label>
+            <input id="a2" type="number" step="0.1" placeholder="예: 26.5" />
+          </div>
+        </div>
+
+        <div class="grid cols-2">
+          <div>
+            <label>속지름 (지관의 외경)</label>
+            <input id="b" type="number" step="0.1" placeholder="예: 8.5" />
+          </div>
+          <div>
+            <label>높이</label>
+            <input id="h" type="number" step="0.1" placeholder="예: 8.3" />
+          </div>
+        </div>
+
+        <div class="grid cols-2">
+          <div>
+            <label>완롤 라벨 개수</label>
+            <input id="n1" type="number" step="1" placeholder="예: 1000" />
+          </div>
+          <div>
+            <label class="muted">안내</label>
+            <div class="hint">높이와 속지름은 완롤·비교롤이 동일하다고 가정해 한 번만 입력.</div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:8px;">
+          <button class="btn primary" id="calc">계산하기</button>
+          <button class="btn ghost" id="reset">초기화</button>
+          <button class="btn warn" id="prefill">예시 불러오기</button>
+        </div>
+        <div id="err" class="error"></div>
+      </section>
+
+      <section class="card">
+        <h2>결과</h2>
+        <div class="result" id="result">—</div>
+        <div id="explain" class="hint" style="margin-top:8px; line-height:1.6;"></div>
+        <details>
+          <summary>계산식 보기</summary>
+          <div class="hint" style="margin-top:8px;">
+            동일 재질/두께 가정 시 라벨 개수는 원통 고리(annulus) 부피에 비례합니다:<br/>
+            <code>부피 = π × 높이 × (바깥지름² − 속지름²)</code>
+            <div style="margin-top:6px"></div>
+            높이가 동일할 때,
+            <code>비교롤 개수 = 완롤 개수 × (비교롤 바깥지름² − 속지름²) / (완롤 바깥지름² − 속지름²)</code>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:12px;">
+      <h2>주의사항</h2>
+      <ul class="hint">
+        <li>속지름은 지관의 외경(빈 공간 지름) 의미.</li>
+        <li>바깥지름이 속지름보다 작거나 같으면 계산 불가.</li>
+        <li>두께/재질이 달라지면 실제 값과 차이가 날 수 있음.</li>
+      </ul>
+    </section>
+  </div>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+
+    const fmt1 = (n)=> {
+      if (!isFinite(n)) return '—';
+      return Number(n).toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+    };
+
+    const compute = ()=>{
+      const a1 = +$('#a1').value;
+      const a2 = +$('#a2').value;
+      const b  = +$('#b').value;
+      const h  = +$('#h').value; // 높이는 동일 가정으로 비율에서 소거되지만, 입력 검증용
+      const n1 = +$('#n1').value;
+
+      const err = [];
+      if (!a1 || !a2 || !b || !h || !n1) err.push('모든 필드를 올바르게 입력해줘.');
+      if (a1 && b && a1 <= b) err.push('완롤 바깥지름은 속지름보다 커야 해.');
+      if (a2 && b && a2 <= b) err.push('비교롤 바깥지름은 속지름보다 커야 해.');
+      if (h && h <= 0) err.push('높이는 0보다 커야 해.');
+      if (n1 && n1 <= 0) err.push('완롤 라벨 개수는 0보다 커야 해.');
+
+      if (err.length){
+        $('#err').style.display='block';
+        $('#err').textContent = err[0];
+        $('#result').textContent='—';
+        $('#explain').textContent='';
+        return;
+      }
+
+      $('#err').style.display='none';
+
+      const num = (a2*a2 - b*b);
+      const den = (a1*a1 - b*b);
+
+      if (den <= 0){
+        $('#err').style.display='block';
+        $('#err').textContent = '완롤 바깥지름² − 속지름²가 0 이하로 계산돼. 값을 확인해줘.';
+        $('#result').textContent='—';
+        $('#explain').textContent='';
+        return;
+      }
+
+      // 높이는 동일 가정 → (h/h) = 1
+      const ratio = (num/den);
+      const n2 = n1 * ratio;
+
+      const rounded = Math.round(n2);
+      $('#result').innerHTML = `${rounded.toLocaleString()} <small>개 (소수 포함: ${fmt1(n2)} 개)</small>`;
+
+      $('#explain').innerHTML = `비율 = (비교롤 바깥지름² − 속지름²) / (완롤 바깥지름² − 속지름²) = ${fmt1(num/den)}<br/>비교롤 개수 = 완롤 개수 × 비율 = ${n1.toLocaleString()} × ${fmt1(ratio)} = <b>${fmt1(n2)}</b> 개`;
+    };
+
+    $('#calc').addEventListener('click', compute);
+    ['a1','a2','b','h','n1'].forEach(id => {
+      document.getElementById(id).addEventListener('input', ()=>{
+        if ($('#a1').value && $('#a2').value && $('#b').value && $('#h').value && $('#n1').value) compute();
+      });
+    });
+
+    $('#reset').addEventListener('click', ()=>{
+      ['a1','a2','b','h','n1'].forEach(id=>document.getElementById(id).value='');
+      $('#result').textContent='—';
+      $('#explain').textContent='';
+      $('#err').style.display='none';
+    });
+
+    $('#prefill').addEventListener('click', ()=>{
+      // 예시: 완롤 27.7 → 비교롤 26.5 / 속지름 8.5 / 높이 8.3 / 완롤 1000개
+      $('#a1').value='27.7';
+      $('#a2').value='26.5';
+      $('#b').value='8.5';
+      $('#h').value='8.3';
+      $('#n1').value='1000';
+      compute();
+    });
+  </script>
+</body>
+</html>
